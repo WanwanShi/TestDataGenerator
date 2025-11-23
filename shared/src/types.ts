@@ -21,6 +21,18 @@ export type FieldType =
   | 'array'
   | 'object';
 
+// Date format options
+export type DateFormat =
+  | 'iso'           // 2024-01-15T10:30:00.000Z (ISO 8601)
+  | 'iso-date'      // 2024-01-15
+  | 'iso-time'      // 10:30:00
+  | 'unix'          // 1705312200 (seconds)
+  | 'unix-ms'       // 1705312200000 (milliseconds)
+  | 'us'            // 01/15/2024
+  | 'eu'            // 15/01/2024
+  | 'short'         // Jan 15, 2024
+  | 'long';         // January 15, 2024
+
 // Configuration for a single field
 export interface FieldConfig {
   name: string;
@@ -42,6 +54,9 @@ export interface FieldConfig {
   min?: number;
   max?: number;
   precision?: number; // Decimal places
+
+  // Date/time constraints
+  dateFormat?: DateFormat; // Output format for date/datetime/time/timestamp
 
   // Enum constraints
   enumValues?: string[];

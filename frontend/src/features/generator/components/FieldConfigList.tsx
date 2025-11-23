@@ -19,7 +19,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useState } from 'react';
-import type { FieldConfig, FieldType } from '@test-data-generator/shared';
+import type { FieldConfig, FieldType, DateFormat } from '@test-data-generator/shared';
 
 interface FieldConfigListProps {
   fields: FieldConfig[];
@@ -31,7 +31,7 @@ const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: 'string', label: 'Text' },
   { value: 'number', label: 'Number' },
   { value: 'boolean', label: 'Boolean' },
-  { value: 'date', label: 'Date' },
+  { value: 'date', label: 'Date/Time' },
   { value: 'email', label: 'Email' },
   { value: 'uuid', label: 'UUID' },
   { value: 'phone', label: 'Phone' },
@@ -49,6 +49,21 @@ const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: 'array', label: 'Array' },
   { value: 'object', label: 'Object' },
 ];
+
+const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; example: string }[] = [
+  { value: 'iso', label: 'ISO 8601', example: '2024-01-15T10:30:00.000Z' },
+  { value: 'iso-date', label: 'ISO Date', example: '2024-01-15' },
+  { value: 'iso-time', label: 'ISO Time', example: '10:30:00' },
+  { value: 'unix', label: 'Unix (sec)', example: '1705312200' },
+  { value: 'unix-ms', label: 'Unix (ms)', example: '1705312200000' },
+  { value: 'us', label: 'US Format', example: '01/15/2024' },
+  { value: 'eu', label: 'EU Format', example: '15/01/2024' },
+  { value: 'short', label: 'Short', example: 'Jan 15, 2024' },
+  { value: 'long', label: 'Long', example: 'January 15, 2024' },
+];
+
+// Helper to check if a field type is date-related
+const isDateType = (type: FieldType): boolean => type === 'date';
 
 interface FieldRowProps {
   field: FieldConfig;
@@ -158,6 +173,23 @@ function FieldRow({ field, index, onUpdate, depth = 0 }: FieldRowProps) {
                 sx={{ width: 70 }}
               />
             </Box>
+          )}
+
+          {isDateType(field.type) && (
+            <Select
+              size="small"
+              value={field.dateFormat ?? 'iso'}
+              onChange={(e) => handleChange('dateFormat', e.target.value as DateFormat)}
+              sx={{ minWidth: 130 }}
+            >
+              {DATE_FORMAT_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  <Tooltip title={opt.example} placement="right">
+                    <span>{opt.label}</span>
+                  </Tooltip>
+                </MenuItem>
+              ))}
+            </Select>
           )}
 
           {field.type === 'number' && (

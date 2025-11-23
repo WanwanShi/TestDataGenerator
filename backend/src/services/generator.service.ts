@@ -1,5 +1,31 @@
 import { faker } from '@faker-js/faker';
-import type { FieldConfig, FieldType, ParsedSchema } from '@test-data-generator/shared';
+import type { FieldConfig, FieldType, ParsedSchema, DateFormat } from '@test-data-generator/shared';
+
+// Format a date according to the specified format
+function formatDate(date: Date, format: DateFormat = 'iso'): string | number {
+  switch (format) {
+    case 'iso':
+      return date.toISOString();
+    case 'iso-date':
+      return date.toISOString().split('T')[0];
+    case 'iso-time':
+      return date.toISOString().split('T')[1].split('.')[0];
+    case 'unix':
+      return Math.floor(date.getTime() / 1000);
+    case 'unix-ms':
+      return date.getTime();
+    case 'us':
+      return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+    case 'eu':
+      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    case 'short':
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    case 'long':
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    default:
+      return date.toISOString();
+  }
+}
 
 // Hint patterns mapped to appropriate faker generators
 // Keywords in hint/name -> generator function
@@ -359,8 +385,9 @@ function generateValue(config: FieldConfig): unknown {
     }
   }
 
-  // Try hint-based generation first (for string and number types)
-  if (config.type === 'string' || config.type === 'number' || config.type === 'date') {
+  // Try hint-based generation first (for string and number types only)
+  // Date types should always use generateByType to respect dateFormat setting
+  if (config.type === 'string' || config.type === 'number') {
     const hintValue = generateFromHint(config);
     if (hintValue !== null) {
       return hintValue;
@@ -385,7 +412,7 @@ function generateByType(config: FieldConfig): unknown {
       return faker.datatype.boolean();
 
     case 'date':
-      return faker.date.recent({ days: 365 }).toISOString();
+      return formatDate(faker.date.recent({ days: 365 }), config.dateFormat || 'iso');
 
     case 'email':
       return faker.internet.email();
@@ -551,13 +578,28 @@ export function generateData(
   return records;
 }
 
+// Get list of available date formats for UI
+export function getAvailableDateFormats(): { format: DateFormat; label: string; example: string }[] {
+  return [
+    { format: 'iso', label: 'ISO 8601', example: '2024-01-15T10:30:00.000Z' },
+    { format: 'iso-date', label: 'ISO Date', example: '2024-01-15' },
+    { format: 'iso-time', label: 'ISO Time', example: '10:30:00' },
+    { format: 'unix', label: 'Unix (seconds)', example: '1705312200' },
+    { format: 'unix-ms', label: 'Unix (milliseconds)', example: '1705312200000' },
+    { format: 'us', label: 'US Format', example: '01/15/2024' },
+    { format: 'eu', label: 'EU Format', example: '15/01/2024' },
+    { format: 'short', label: 'Short', example: 'Jan 15, 2024' },
+    { format: 'long', label: 'Long', example: 'January 15, 2024' },
+  ];
+}
+
 // Get list of available field types for UI
 export function getAvailableFieldTypes(): { type: FieldType; label: string; description: string }[] {
   return [
     { type: 'string', label: 'Text', description: 'Generic text string' },
     { type: 'number', label: 'Number', description: 'Integer or decimal number' },
     { type: 'boolean', label: 'Boolean', description: 'True or false' },
-    { type: 'date', label: 'Date', description: 'ISO date string' },
+    { type: 'date', label: 'Date/Time', description: 'Date, time, or timestamp (choose format)' },
     { type: 'email', label: 'Email', description: 'Email address' },
     { type: 'uuid', label: 'UUID', description: 'Unique identifier' },
     { type: 'phone', label: 'Phone', description: 'Phone number' },
