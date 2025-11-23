@@ -32,17 +32,35 @@ jobs:
 
       - name: Create deployment package
         run: |
-          mkdir -p deploy
-          cp -r shared/dist deploy/shared/
-          cp -r backend/dist deploy/backend/
-          cp -r frontend/dist deploy/frontend/
-          cp package*.json deploy/
-          cp shared/package*.json deploy/shared/
-          cp backend/package*.json deploy/backend/
-          cd deploy && npm ci --omit=dev --workspace=backend --workspace=shared
+          # Create deployment structure maintaining the monorepo layout
+          mkdir -p deploy/shared/dist
+          mkdir -p deploy/backend/dist
+          mkdir -p deploy/frontend/dist
+          mkdir -p deploy/backend/node_modules
+          mkdir -p deploy/shared/node_modules
+
+          # Copy built files
+          cp -r shared/dist/* deploy/shared/dist/
+          cp -r backend/dist/* deploy/backend/dist/
+          cp -r frontend/dist/* deploy/frontend/dist/
+
+          # Copy package files
+          cp package.json deploy/
+          cp package-lock.json deploy/
+          cp shared/package.json deploy/shared/
+          cp backend/package.json deploy/backend/
+
+          # Copy node_modules (production deps are already installed)
+          cp -r node_modules deploy/
+
+          # Debug: List deploy structure
+          echo "=== Deploy structure ==="
+          find deploy -type d | head -20
+          echo "=== Frontend files ==="
+          ls -la deploy/frontend/dist/ | head -10
 
       - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}

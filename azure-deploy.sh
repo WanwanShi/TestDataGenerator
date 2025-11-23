@@ -40,6 +40,13 @@ az webapp config appsettings set \
     NODE_ENV=production \
     WEBSITE_NODE_DEFAULT_VERSION=~18
 
+# Configure startup command for monorepo
+echo "Setting startup command..."
+az webapp config set \
+  --name $APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --startup-file "node backend/dist/index.js"
+
 # Enable logging
 echo "Enabling logging..."
 az webapp log config \
