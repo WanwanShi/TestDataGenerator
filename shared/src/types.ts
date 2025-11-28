@@ -102,6 +102,7 @@ export interface GenerateDataRequest {
   count: number; // 1 to 100000
   format: ExportFormat;
   preview?: boolean; // If true, only return first 10 records
+  sequentialIdPrefix?: string; // Optional custom prefix for all sequential IDs
 }
 
 // Response from generation
@@ -117,4 +118,29 @@ export interface ApiError {
   message: string;
   code?: string;
   details?: Record<string, unknown>;
+}
+
+// Generation context passed during data generation (internal use only)
+export interface GenerationContext {
+  // Current record index (0-based)
+  recordIndex: number;
+
+  // Total number of records being generated
+  totalRecords: number;
+
+  // Unique random part for this top-level record (6-char alphanumeric)
+  recordRandomId: string;
+
+  // Parent context for nested structures (hierarchical IDs)
+  parentContext?: {
+    randomId: string;  // Parent's random ID
+    sequence: string;  // Parent's sequence
+    depth: number;     // Nesting depth (0 = root)
+  };
+
+  // Array item index (for items within arrays)
+  arrayItemIndex?: number;
+
+  // Custom prefix for sequential IDs (optional, overrides auto-extracted prefix)
+  sequentialIdPrefix?: string;
 }

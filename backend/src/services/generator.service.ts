@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { FieldConfig, FieldType, ParsedSchema, DateFormat } from '@test-data-generator/shared';
+import type { FieldConfig, FieldType, ParsedSchema, DateFormat, GenerationContext } from '@test-data-generator/shared';
 
 // Format a date according to the specified format
 function formatDate(date: Date, format: DateFormat = 'iso'): string | number {
@@ -338,6 +338,103 @@ const HINT_GENERATORS: Array<{
   },
 ];
 
+// Patterns that indicate an ID/reference field
+const ID_PATTERNS = [
+  /^id$/i,                    // "id"
+  /Id$/,                      // ends with "Id" (userId, orderId)
+  /^.*_id$/i,                 // ends with "_id" (user_id)
+  /reference$/i,              // ends with "reference"
+  /^ref$/i,                   // "ref"
+  /^.*_ref$/i,                // ends with "_ref"
+  /^identifier$/i,            // "identifier"
+  /^code$/i,                  // "code"
+];
+
+// Check if a field name indicates it should be an auto-generated ID
+function isIdField(fieldName: string): boolean {
+  return ID_PATTERNS.some(pattern => pattern.test(fieldName));
+}
+
+// Extract prefix from field name
+// Examples: "userId" -> "USER", "orderId" -> "ORDER", "reference" -> "REF"
+function extractPrefix(fieldName: string): string {
+  // Remove common suffixes
+  let baseName = fieldName
+    .replace(/Id$/i, '')          // userId -> user
+    .replace(/_id$/i, '')         // user_id -> user
+    .replace(/Reference$/i, '')   // siteReference -> site
+    .replace(/_ref$/i, '')        // site_ref -> site
+    .replace(/Identifier$/i, '')  // userIdentifier -> user
+    .replace(/Code$/i, '');       // orderCode -> order
+
+  // If nothing left, use original name
+  if (!baseName) {
+    baseName = fieldName;
+  }
+
+  // Default prefixes for common generic names
+  const defaultPrefixes: Record<string, string> = {
+    'id': 'ID',
+    'ref': 'REF',
+    'reference': 'REF',
+    'identifier': 'ID',
+    'code': 'CODE',
+  };
+
+  const lowerBase = baseName.toLowerCase();
+  if (defaultPrefixes[lowerBase]) {
+    return defaultPrefixes[lowerBase];
+  }
+
+  // Split camelCase and take first word
+  const words = baseName
+    .replace(/([a-z])([A-Z])/g, '$1 $2')  // camelCase -> spaces
+    .replace(/_/g, ' ')                    // snake_case -> spaces
+    .split(/\s+/);
+
+  return (words[0] || baseName).toUpperCase();
+}
+
+// Generate a 6-character alphanumeric random ID
+function generateRandomId(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  return Array.from(
+    { length: 6 },
+    () => chars[Math.floor(Math.random() * chars.length)]
+  ).join('');
+}
+
+// Format sequence number with appropriate zero-padding
+function formatSequence(index: number, total: number): string {
+  const digits = String(total).length;
+  const sequence = index + 1;  // 1-based sequence
+  return String(sequence).padStart(digits, '0');
+}
+
+// Generate an auto ID in format: PREFIX-RANDOM-SEQUENCE
+function generateAutoId(
+  fieldName: string,
+  context: GenerationContext
+): string {
+  // Use custom prefix if provided, otherwise extract from field name
+  const prefix = context.sequentialIdPrefix || extractPrefix(fieldName);
+  const { recordRandomId, parentContext, arrayItemIndex, recordIndex, totalRecords } = context;
+
+  if (parentContext) {
+    // Nested ID: inherit parent's random ID and extend sequence
+    const childSeq = formatSequence(
+      arrayItemIndex ?? 0,
+      10 // Assume max 10 nested items for padding
+    );
+
+    return `${prefix}-${parentContext.randomId}-${parentContext.sequence}-${childSeq}`;
+  }
+
+  // Top-level ID: use record's random ID and sequence
+  const sequence = formatSequence(recordIndex, totalRecords);
+  return `${prefix}-${recordRandomId}-${sequence}`;
+}
+
 // Try to generate value based on hint or field name
 function generateFromHint(config: FieldConfig): unknown | null {
   // Split camelCase and snake_case for better matching
@@ -367,13 +464,18 @@ function generateFromHint(config: FieldConfig): unknown | null {
 }
 
 // Generate a single value based on field configuration
-function generateValue(config: FieldConfig): unknown {
+function generateValue(config: FieldConfig, context?: GenerationContext): unknown {
   // Handle nullable fields
   if (config.nullable && config.nullablePercent) {
     const roll = Math.random() * 100;
     if (roll < config.nullablePercent) {
       return null;
     }
+  }
+
+  // NEW: Auto ID generation - highest priority
+  if (config.type === 'string' && context && isIdField(config.name)) {
+    return generateAutoId(config.name, context);
   }
 
   // Use custom faker template if provided
@@ -394,11 +496,11 @@ function generateValue(config: FieldConfig): unknown {
     }
   }
 
-  return generateByType(config);
+  return generateByType(config, context);
 }
 
 // Generate value based on field type
-function generateByType(config: FieldConfig): unknown {
+function generateByType(config: FieldConfig, context?: GenerationContext): unknown {
   const { type } = config;
 
   switch (type) {
@@ -457,10 +559,10 @@ function generateByType(config: FieldConfig): unknown {
       return generateEnum(config);
 
     case 'array':
-      return generateArray(config);
+      return generateArray(config, context);
 
     case 'object':
-      return generateObject(config);
+      return generateObject(config, context);
 
     default:
       return faker.lorem.word();
@@ -515,7 +617,7 @@ function generateEnum(config: FieldConfig): string {
 }
 
 // Generate array with constraints
-function generateArray(config: FieldConfig): unknown[] {
+function generateArray(config: FieldConfig, context?: GenerationContext): unknown[] {
   const minLength = config.arrayMinLength ?? 1;
   const maxLength = config.arrayMaxLength ?? 5;
   const length = faker.number.int({ min: minLength, max: maxLength });
@@ -525,11 +627,26 @@ function generateArray(config: FieldConfig): unknown[] {
     return Array.from({ length }, () => faker.lorem.word());
   }
 
-  return Array.from({ length }, () => generateValue(config.arrayItemConfig!));
+  // Generate array items with context for hierarchical IDs
+  return Array.from({ length }, (_, index) => {
+    const childContext: GenerationContext | undefined = context ? {
+      recordIndex: context.recordIndex,
+      totalRecords: context.totalRecords,
+      recordRandomId: context.recordRandomId,
+      parentContext: {
+        randomId: context.recordRandomId,
+        sequence: formatSequence(context.recordIndex, context.totalRecords),
+        depth: (context.parentContext?.depth ?? -1) + 1,
+      },
+      arrayItemIndex: index,
+    } : undefined;
+
+    return generateValue(config.arrayItemConfig!, childContext);
+  });
 }
 
 // Generate nested object
-function generateObject(config: FieldConfig): Record<string, unknown> {
+function generateObject(config: FieldConfig, context?: GenerationContext): Record<string, unknown> {
   if (!config.nestedFields || config.nestedFields.length === 0) {
     return {};
   }
@@ -539,21 +656,24 @@ function generateObject(config: FieldConfig): Record<string, unknown> {
     if (!field.required && Math.random() > 0.7) {
       continue; // Skip optional fields 30% of the time
     }
-    result[field.name] = generateValue(field);
+    result[field.name] = generateValue(field, context);
   }
 
   return result;
 }
 
 // Generate a single record from schema
-function generateRecord(schema: ParsedSchema): Record<string, unknown> {
+function generateRecord(
+  schema: ParsedSchema,
+  context: GenerationContext
+): Record<string, unknown> {
   const record: Record<string, unknown> = {};
 
   for (const field of schema.fields) {
     if (!field.required && Math.random() > 0.7) {
       continue; // Skip optional fields 30% of the time
     }
-    record[field.name] = generateValue(field);
+    record[field.name] = generateValue(field, context);
   }
 
   return record;
@@ -563,7 +683,8 @@ function generateRecord(schema: ParsedSchema): Record<string, unknown> {
 export function generateData(
   schema: ParsedSchema,
   count: number,
-  preview: boolean = false
+  preview: boolean = false,
+  sequentialIdPrefix?: string
 ): Record<string, unknown>[] {
   // Enforce limits
   const actualCount = Math.min(Math.max(1, count), 100000);
@@ -572,7 +693,15 @@ export function generateData(
   const records: Record<string, unknown>[] = [];
 
   for (let i = 0; i < recordCount; i++) {
-    records.push(generateRecord(schema));
+    // Create generation context for this record
+    const context: GenerationContext = {
+      recordIndex: i,
+      totalRecords: recordCount,
+      recordRandomId: generateRandomId(),
+      sequentialIdPrefix,
+    };
+
+    records.push(generateRecord(schema, context));
   }
 
   return records;

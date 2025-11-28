@@ -27,6 +27,7 @@ const generateDataSchema = z.object({
   count: z.number().int().min(1).max(100000),
   format: z.enum(['json', 'csv', 'sql', 'xml']),
   preview: z.boolean().optional(),
+  sequentialIdPrefix: z.string().optional(),
 });
 
 // POST /api/parse - Parse DTO input
@@ -74,10 +75,10 @@ router.post('/generate', (req, res) => {
       return res.status(400).json(response);
     }
 
-    const { schema, count, format, preview } = validation.data as GenerateDataRequest;
+    const { schema, count, format, preview, sequentialIdPrefix } = validation.data as GenerateDataRequest;
 
     // Generate the data
-    const records = generateData(schema, count, preview);
+    const records = generateData(schema, count, preview, sequentialIdPrefix);
 
     // Export to requested format
     const exported = exportData(records, format);

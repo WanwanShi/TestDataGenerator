@@ -20,6 +20,8 @@ interface GenerationOptionsProps {
   onCountChange: (count: number) => void;
   format: ExportFormat;
   onFormatChange: (format: ExportFormat) => void;
+  sequentialIdPrefix: string;
+  onSequentialIdPrefixChange: (prefix: string) => void;
   onGenerate: (preview: boolean) => void;
   isLoading: boolean;
   disabled: boolean;
@@ -39,6 +41,8 @@ export function GenerationOptions({
   onCountChange,
   format,
   onFormatChange,
+  sequentialIdPrefix,
+  onSequentialIdPrefixChange,
   onGenerate,
   isLoading,
   disabled,
@@ -123,6 +127,17 @@ export function GenerationOptions({
             ))}
           </Select>
         </FormControl>
+
+        {/* Sequential ID Prefix */}
+        <TextField
+          label="Sequential ID Prefix (Optional)"
+          placeholder="e.g., USER, ORDER, REF"
+          value={sequentialIdPrefix}
+          onChange={(e) => onSequentialIdPrefixChange(e.target.value)}
+          size="small"
+          helperText="Custom prefix for all ID fields. Leave empty to use field-based prefixes"
+          sx={{ maxWidth: 300 }}
+        />
 
         {/* Action Buttons */}
         <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>

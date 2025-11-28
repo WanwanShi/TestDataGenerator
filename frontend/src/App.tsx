@@ -15,6 +15,7 @@ function App() {
   const [schema, setSchema] = useState<ParsedSchema | null>(null);
   const [count, setCount] = useState(10);
   const [format, setFormat] = useState<ExportFormat>('json');
+  const [sequentialIdPrefix, setSequentialIdPrefix] = useState('');
   const [output, setOutput] = useState<{ data: string; recordCount: number; isPreview: boolean } | null>(null);
 
   // Mutations
@@ -59,6 +60,7 @@ function App() {
         count,
         format,
         preview,
+        sequentialIdPrefix: sequentialIdPrefix || undefined,
       });
     }
   };
@@ -107,6 +109,8 @@ function App() {
               onCountChange={setCount}
               format={format}
               onFormatChange={setFormat}
+              sequentialIdPrefix={sequentialIdPrefix}
+              onSequentialIdPrefixChange={setSequentialIdPrefix}
               onGenerate={handleGenerate}
               isLoading={generateMutation.isPending}
               disabled={!schema || schema.fields.length === 0}
